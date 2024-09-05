@@ -1,0 +1,106 @@
+# Definisikan jaringan yang akan digunakan oleh semua layanan
+networks:
+  laravel:
+    driver: bridge # Menggunakan driver bridge untuk isolasi jaringan
+
+# Definisikan layanan-layanan yang diperlukan
+services:
+  app1:
+    build:
+      context: ./dockerfiles # Lokasi Dockerfile untuk build image
+      dockerfile: nginx.dockerfile # Dockerfile untuk layanan Nginx
+    ports:
+      - "80:80" # Map port 80 di host ke port 80 di container
+    volumes:
+      - ./src:/var/www/html # Mount direktori src ke dalam container
+    depends_on:
+      - php # Layanan ini tergantung pada php
+      - redis # Layanan ini tergantung pada redis
+      - mysql # Layanan ini tergantung pada mysql
+      - mailhog # Layanan ini tergantung pada mailhog
+    networks:
+      - laravel # Menghubungkan ke jaringan laravel
+
+  mysql:
+    image: mariadb:10.6 # Menggunakan image MariaDB versi 10.6
+    restart: unless-stopped # Restart container kecuali dihentikan secara manual
+    tty: true # Mengaktifkan tty untuk proses di container
+    ports:
+      - "3306:3306" # Map port 3306 di host ke port 3306 di container
+    environment:
+      MYSQL_USER: root # User default untuk MySQL
+      MYSQL_PASSWORD: 1qaz2wsx # Password untuk user MySQL
+      MYSQL_ROOT_PASSWORD: 1qaz2wsx # Password untuk user root MySQL
+    volumes:
+      - mysql_data:/var/lib/mysql # Mount volume untuk menyimpan data MySQL
+    networks:
+      - laravel # Menghubungkan ke jaringan laravel
+
+  php:
+    build:
+      context: ./dockerfiles # Lokasi Dockerfile untuk build image
+      dockerfile: php.dockerfile # Dockerfile untuk layanan PHP
+    ports:
+      - "9000:9000" # Map port 9000 di host ke port 9000 di container
+    volumes:
+      - ./src:/var/www/html # Mount direktori src ke dalam container
+    networks:
+      - laravel # Menghubungkan ke jaringan laravel
+
+  redis:
+    image: redis:alpine # Menggunakan image Redis dengan Alpine Linux
+    restart: unless-stopped # Restart container kecuali dihentikan secara manual
+    ports:
+      - "6379:6379" # Map port 6379 di host ke port 6379 di container
+    networks:
+      - laravel # Menghubungkan ke jaringan laravel
+
+  composer:
+    build:
+      context: ./dockerfiles # Lokasi Dockerfile untuk build image
+      dockerfile: php.dockerfile # Dockerfile yang sama dengan layanan PHP
+    volumes:
+      - ./src:/var/www/html # Mount direktori src ke dalam container
+    depends_on:
+      - php # Layanan ini tergantung pada php
+    entrypoint: [ 'composer', '--ignore-platform-reqs' ] # Menjalankan Composer dengan opsi
+    networks:
+      - laravel # Menghubungkan ke jaringan laravel
+
+  npm:
+    image: node:current-alpine # Menggunakan image Node.js dengan Alpine Linux
+    volumes:
+      - ./src:/var/www/html # Mount direktori src ke dalam container
+    ports:
+      - "3000:3000" # Map port 3000 di host ke port 3000 di container
+      - "3001:3001" # Map port 3001 di host ke port 3001 di container
+      - "5173:5173" # Map port 5173 di host ke port 5173 di container
+    working_dir: /var/www/html # Set direktori kerja untuk npm
+    entrypoint: [ 'npm' ] # Menjalankan npm dengan entrypoint default
+    networks:
+      - laravel # Menghubungkan ke jaringan laravel
+
+  artisan:
+    build:
+      context: ./dockerfiles # Lokasi Dockerfile untuk build image
+      dockerfile: php.dockerfile # Dockerfile yang sama dengan layanan PHP
+    volumes:
+      - ./src:/var/www/html # Mount direktori src ke dalam container
+    depends_on:
+      - mysql # Layanan ini tergantung pada mysql
+    entrypoint: [ 'php', '/var/www/html/artisan' ] # Menjalankan Artisan CLI
+    networks:
+      - laravel # Menghubungkan ke jaringan laravel
+
+  mailhog:
+    image: mailhog/mailhog:latest # Menggunakan image MailHog untuk menangani email testing
+    ports:
+      - "1025:1025" # Map port 1025 di host ke port 1025 di container (SMTP)
+      - "8025:8025" # Map port 8025 di host ke port 8025 di container (web interface)
+    networks:
+      - laravel # Menghubungkan ke jaringan laravel
+
+# Definisikan volume untuk menyimpan data
+volumes:
+  mysql_data:
+    driver: local # Driver volume lokal untuk data MySQL
